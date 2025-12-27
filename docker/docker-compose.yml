@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # TigerGraph Community Edition
+  tigergraph:
+    image: tigergraph/tigergraph:latest
+    container_name: open-core-graph-rag-tigergraph
+    ports:
+      - "${TIGERGRAPH_PORT:-9000}:9000"  # REST API
+      - "${TIGERGRAPH_ADMIN_PORT:-14240}:14240"  # Admin UI
+    environment:
+      TG_ADMIN: ${TIGERGRAPH_ADMIN:-tigergraph}
+      TG_ADMIN_PASSWD: ${TIGERGRAPH_PASSWORD:-tigergraph}
+      TG_PASSWD: ${TIGERGRAPH_PASSWORD:-tigergraph}
+    volumes:
+      - tigergraph-data:/home/tigergraph/mydata
+      - tigergraph-logs:/home/tigergraph/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/echo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - graph-rag-network
+    command: bash -c "cd /home/tigergraph && gadmin start all"
+
+  # PostgreSQL for auxiliary data storage (if needed)
+  postgres:
+    image: postgres:15-alpine
+    container_name: open-core-graph-rag-postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-graph_rag}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init/init_db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - graph-rag-network
+
+  # Python application container
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: open-core-graph-rag-app
+    ports:
+      - "${APP_PORT:-8000}:8000"  # For future API
+    environment:
+      TIGERGRAPH_HOST: tigergraph
+      TIGERGRAPH_PORT: 9000
+      TIGERGRAPH_ADMIN: ${TIGERGRAPH_ADMIN:-tigergraph}
+      TIGERGRAPH_PASSWORD: ${TIGERGRAPH_PASSWORD:-tigergraph}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-graph_rag}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ..:/workspace
+      - /workspace/.venv  # Prevent local venv from mounting
+    depends_on:
+      tigergraph:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - graph-rag-network
+    command: tail -f /dev/null  # Keep container running for development
+
+volumes:
+  tigergraph-data:
+  tigergraph-logs:
+  postgres-data:
+
+networks:
+  graph-rag-network:
+    driver: bridge
