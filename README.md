@@ -186,6 +186,27 @@ open_core_graph_RAG/
 
 ## 🔧 Development Workflow
 
+### Automated Tools (Recommended)
+
+We provide automation scripts for common tasks. See [tools/README.md](./tools/README.md) for complete documentation.
+
+**Quick start:**
+```bash
+./auto dev              # Setup: build Docker + launch
+./auto test tests/      # Run tests
+./auto fix              # Format code
+./auto quality          # Quality checks: format + lint + typecheck
+```
+
+Three tools are available (all equivalent):
+- `./auto` - Bash script (fast, macOS/Linux)
+- `python auto.py` - Python script (cross-platform, recommended)
+- `make` - Makefile (if make is installed)
+
+See [tools/README.md](./tools/README.md) for all available commands and options.
+
+### Manual Commands
+
 ### 1. Install Dependencies
 ```bash
 docker-compose -f docker/docker-compose.yml exec app pip install -e .
