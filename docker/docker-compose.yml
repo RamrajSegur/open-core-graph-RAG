@@ -3,6 +3,7 @@ version: '3.8'
 services:
   # TigerGraph Community Edition
   tigergraph:
+    platform: linux/amd64  # Explicitly specify x86-64 (emulated on ARM64 Macs)
     image: tigergraph/tigergraph:latest
     container_name: open-core-graph-rag-tigergraph
     ports:
@@ -17,9 +18,10 @@ services:
       - tigergraph-logs:/home/tigergraph/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/echo"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 60s
     networks:
       - graph-rag-network
     command: bash -c "cd /home/tigergraph && gadmin start all"
@@ -68,10 +70,10 @@ services:
       - ..:/workspace
       - /workspace/.venv  # Prevent local venv from mounting
     depends_on:
-      tigergraph:
-        condition: service_healthy
       postgres:
         condition: service_healthy
+      tigergraph:
+        condition: service_started  # Just wait for TigerGraph to start, not necessarily healthy
     networks:
       - graph-rag-network
     command: tail -f /dev/null  # Keep container running for development
