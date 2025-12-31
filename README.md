@@ -6,6 +6,8 @@
 
 Open Core Graph RAG is an open-source system that combines knowledge graphs with large language models to build reasoning-capable retrieval-augmented generation (RAG) systems. Unlike traditional RAG systems that simply retrieve relevant documents, this system performs multi-hop reasoning over a knowledge graph to answer complex queries.
 
+> **For Business Leaders & Managers:** Want a quick overview? See [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md) for a non-technical introduction.
+
 **Key Features:**
 - 🧠 **Reasoning-First**: Multi-hop inference over knowledge graphs
 - 📊 **Graph-Based**: TigerGraph for scalable, distributed graph storage
