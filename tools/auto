@@ -272,6 +272,23 @@ run_tests_in_docker() {
     fi
 }
 
+# Run interactive shell in Docker container
+run_interactive() {
+    log_info "Starting interactive shell in Docker container..."
+    
+    cd "${PROJECT_ROOT}"
+    
+    # Make sure containers are running
+    if ! docker-compose -f "${DOCKER_COMPOSE_FILE}" ps | grep -q "app"; then
+        log_info "App container not running, launching..."
+        launch_docker
+    fi
+    
+    # Start interactive bash shell
+    log_info "You are now in the Docker container. Type 'exit' to quit."
+    docker-compose -f "${DOCKER_COMPOSE_FILE}" exec app /bin/bash
+}
+
 # Main command dispatcher
 main() {
     local command="${1:-help}"
@@ -295,6 +312,9 @@ main() {
             ;;
         test-docker)
             run_tests_in_docker "$path"
+            ;;
+        run)
+            run_interactive
             ;;
         fix)
             fix_format
@@ -340,6 +360,7 @@ ${GREEN}Commands:${NC}
                      Example: ./auto test tests/
                      Example: ./auto test tests/test_graph_store.py
   ${YELLOW}test-docker${NC}        Run tests inside Docker container (requires running containers)
+  ${YELLOW}run${NC}                 Run interactive bash shell in Docker container
   ${YELLOW}fix${NC}                Format code with black
   ${YELLOW}lint${NC}               Check code with flake8
   ${YELLOW}typecheck${NC}          Type checking with mypy
@@ -354,6 +375,7 @@ ${GREEN}Examples:${NC}
   ./auto test                     # Run all tests locally
   ./auto test tests/              # Run tests in tests/ directory
   ./auto test-docker tests/       # Run tests inside Docker container
+  ./auto run                      # Interactive shell in Docker
   ./auto fix                      # Format all code
   ./auto lint                     # Check linting
   ./auto typecheck                # Type checking

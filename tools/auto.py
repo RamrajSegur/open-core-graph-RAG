@@ -256,6 +256,48 @@ class TestRunner:
         except subprocess.CalledProcessError as e:
             Logger.error(f"Tests failed in Docker: {e}")
             return False
+    
+    def run_interactive(self) -> bool:
+        """Run interactive bash shell in Docker container"""
+        Logger.info("Starting interactive shell in Docker container...")
+        
+        docker_manager = DockerManager(str(self.project_root))
+        docker_compose_file = docker_manager.docker_compose_file
+        
+        try:
+            # Check if containers are running
+            result = subprocess.run(
+                ["docker-compose", "-f", str(docker_compose_file), "ps"],
+                cwd=self.project_root,
+                capture_output=True,
+                text=True
+            )
+            
+            if "app" not in result.stdout:
+                Logger.info("App container not running, launching...")
+                if not docker_manager.launch():
+                    return False
+            
+            Logger.info("You are now in the Docker container. Type 'exit' to quit.")
+            
+            # Start interactive bash shell
+            subprocess.run(
+                [
+                    "docker-compose",
+                    "-f",
+                    str(docker_compose_file),
+                    "exec",
+                    "app",
+                    "/bin/bash"
+                ],
+                cwd=self.project_root
+            )
+            
+            return True
+        
+        except subprocess.CalledProcessError as e:
+            Logger.error(f"Failed to run interactive shell: {e}")
+            return False
 
 
 class CodeFormatter:
@@ -412,6 +454,9 @@ class AutomationScript:
         elif command == "test-docker":
             return 0 if self.test_runner.run_tests_in_docker(path) else 1
         
+        elif command == "run":
+            return 0 if self.test_runner.run_interactive() else 1
+        
         elif command == "fix":
             return 0 if self.code_formatter.format_with_black() else 1
         
@@ -480,6 +525,7 @@ class AutomationScript:
                      Example: ./auto.py test tests/
                      Example: ./auto.py test tests/test_graph_store.py
   {Color.YELLOW.value}test-docker{Color.END.value}        Run tests inside Docker container (requires running containers)
+  {Color.YELLOW.value}run{Color.END.value}                 Run interactive bash shell in Docker container
   {Color.YELLOW.value}fix{Color.END.value}                Format code with black
   {Color.YELLOW.value}lint{Color.END.value}               Check code with flake8
   {Color.YELLOW.value}typecheck{Color.END.value}          Type checking with mypy
