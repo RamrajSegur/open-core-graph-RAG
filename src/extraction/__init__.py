@@ -23,6 +23,7 @@ from .parsers import (
     ParsedDocument,
     ParserFactory,
     TXTParser,
+    WebpageParser,
 )
 from .relationships import (
     ExtractedRelationship,
@@ -50,6 +51,7 @@ __all__ = [
     "DOCXParser",
     "CSVParser",
     "TXTParser",
+    "WebpageParser",
     "ParserFactory",
     # Chunking
     "BaseChunker",

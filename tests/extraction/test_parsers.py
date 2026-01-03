@@ -1,6 +1,7 @@
 """Tests for document parsers."""
 
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -10,6 +11,7 @@ from src.extraction import (
     ParsedDocument,
     TXTParser,
     CSVParser,
+    WebpageParser,
 )
 
 
@@ -245,3 +247,144 @@ class TestParsedDocument:
         repr_str = repr(doc)
         assert "ParsedDocument" in repr_str
         assert "txt" in repr_str
+
+
+class TestWebpageParser:
+    """Tests for webpage parser."""
+
+    def test_webpage_parser_initialization(self):
+        """Test that WebpageParser initializes correctly."""
+        parser = WebpageParser()
+        assert parser is not None
+        assert parser.timeout == 10
+
+    def test_webpage_parser_custom_timeout(self):
+        """Test WebpageParser with custom timeout."""
+        parser = WebpageParser(timeout=30)
+        assert parser.timeout == 30
+
+    def test_can_parse_url_http(self):
+        """Test can_parse for HTTP URLs."""
+        parser = WebpageParser()
+        assert parser.can_parse("http://example.com")
+        assert parser.can_parse("https://example.com/page")
+
+    def test_can_parse_html_file(self, tmp_path):
+        """Test can_parse for HTML files."""
+        html_file = tmp_path / "test.html"
+        html_file.write_text("<html><body>Test</body></html>")
+        
+        parser = WebpageParser()
+        assert parser.can_parse(str(html_file))
+
+    def test_cannot_parse_non_html(self):
+        """Test can_parse returns False for non-HTML files."""
+        parser = WebpageParser()
+        assert not parser.can_parse("document.pdf")
+        assert not parser.can_parse("data.csv")
+        assert not parser.can_parse("/path/to/file.txt")
+
+    @patch('requests.get')
+    def test_parse_url_success(self, mock_get):
+        """Test parsing a URL successfully."""
+        # Mock the response
+        mock_response = Mock()
+        mock_response.content = b"<html><head><title>Test Page</title></head><body>Hello World</body></html>"
+        mock_response.headers = {
+            'content-type': 'text/html; charset=utf-8'
+        }
+        mock_response.encoding = 'utf-8'
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # Parse URL
+        parser = WebpageParser()
+        doc = parser.parse("https://example.com")
+
+        assert isinstance(doc, ParsedDocument)
+        assert doc.file_type == DocumentType.HTML
+        assert "Hello World" in doc.raw_text
+        assert doc.metadata['url'] == "https://example.com"
+        assert doc.metadata['status_code'] == 200
+
+    def test_parse_html_file(self, tmp_path):
+        """Test parsing a local HTML file."""
+        html_file = tmp_path / "test.html"
+        html_file.write_text(
+            "<html><head><title>Test</title></head>"
+            "<body><h1>Header</h1><p>Content here</p></body></html>"
+        )
+
+        parser = WebpageParser()
+        doc = parser.parse(str(html_file))
+
+        assert isinstance(doc, ParsedDocument)
+        assert doc.file_type == DocumentType.HTML
+        assert "Header" in doc.raw_text
+        assert "Content here" in doc.raw_text
+        assert doc.metadata['filename'] == "test.html"
+
+    def test_parse_html_file_nonexistent(self):
+        """Test parsing a non-existent HTML file."""
+        parser = WebpageParser()
+        with pytest.raises(FileNotFoundError):
+            parser.parse("/nonexistent/path/file.html")
+
+    def test_parse_invalid_input(self):
+        """Test parsing with invalid input."""
+        parser = WebpageParser()
+        with pytest.raises(ValueError):
+            parser.parse("document.pdf")
+
+    def test_parse_url_network_error(self):
+        """Test handling network errors when fetching URL."""
+        parser = WebpageParser()
+        with patch('requests.get') as mock_get:
+            mock_get.side_effect = Exception("Connection failed")
+            
+            with pytest.raises(ValueError):
+                parser.parse("https://invalid-domain-12345.com")
+
+    def test_parse_html_preserves_text_content(self, tmp_path):
+        """Test that HTML parsing extracts text without HTML tags."""
+        html_file = tmp_path / "content.html"
+        html_file.write_text(
+            "<html><body>"
+            "<script>var x = 1;</script>"
+            "<style>.class { color: red; }</style>"
+            "<p>Useful content</p>"
+            "<div>More content</div>"
+            "</body></html>"
+        )
+
+        parser = WebpageParser()
+        doc = parser.parse(str(html_file))
+
+        # Should have content but not scripts/styles
+        assert "Useful content" in doc.raw_text
+        assert "More content" in doc.raw_text
+        assert "var x = 1;" not in doc.raw_text
+        assert ".class { color: red; }" not in doc.raw_text
+
+    def test_factory_get_webpage_parser(self):
+        """Test factory returns WebpageParser for HTML."""
+        parser = ParserFactory.get_parser("https://example.com")
+        assert isinstance(parser, WebpageParser)
+
+    def test_factory_register_webpage_parser(self):
+        """Test that WebpageParser is registered in factory."""
+        supported = ParserFactory.get_supported_types()
+        assert DocumentType.HTML in supported
+
+    def test_factory_can_parse_url(self):
+        """Test factory can_parse for URLs."""
+        assert ParserFactory.can_parse("https://example.com")
+
+    def test_factory_can_parse_html_file(self, tmp_path):
+        """Test factory can_parse for HTML files."""
+        html_file = tmp_path / "test.html"
+        html_file.write_text("<html></html>")
+        
+        assert ParserFactory.can_parse(str(html_file))
+

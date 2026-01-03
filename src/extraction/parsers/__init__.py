@@ -6,6 +6,7 @@ from .docx_parser import DOCXParser
 from .pdf_parser import PDFParser
 from .parser_factory import ParserFactory
 from .txt_parser import TXTParser
+from .webpage_parser import WebpageParser
 
 __all__ = [
     "BaseParser",
@@ -15,5 +16,6 @@ __all__ = [
     "DOCXParser",
     "CSVParser",
     "TXTParser",
+    "WebpageParser",
     "ParserFactory",
 ]

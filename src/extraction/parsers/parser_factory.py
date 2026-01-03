@@ -8,6 +8,7 @@ from .csv_parser import CSVParser
 from .docx_parser import DOCXParser
 from .pdf_parser import PDFParser
 from .txt_parser import TXTParser
+from .webpage_parser import WebpageParser
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class ParserFactory:
         DocumentType.DOCX: DOCXParser,
         DocumentType.CSV: CSVParser,
         DocumentType.TXT: TXTParser,
+        DocumentType.HTML: WebpageParser,
     }
 
     @classmethod

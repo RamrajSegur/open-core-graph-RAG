@@ -109,14 +109,19 @@ class BaseParser(ABC):
     @staticmethod
     def detect_file_type(file_path: str) -> DocumentType:
         """
-        Detect document type from file extension.
+        Detect document type from file extension or URL.
 
         Args:
-            file_path: Path to the file
+            file_path: Path to the file or URL
 
         Returns:
             DocumentType enum value
         """
+        # Check if it's a URL
+        if file_path.startswith(('http://', 'https://')):
+            return DocumentType.HTML
+        
+        # Check file extension
         suffix = Path(file_path).suffix.lower()
         type_map = {
             ".pdf": DocumentType.PDF,
