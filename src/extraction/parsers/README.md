@@ -14,6 +14,7 @@ The parsers module provides a unified interface for extracting text from multipl
 | **DOCX** | `DOCXParser` | Text formatting, tables, headers/footers |
 | **CSV** | `CSVParser` | Delimiter detection, type handling |
 | **TXT** | `TXTParser` | Encoding detection, raw text |
+| **HTML** | `WebpageParser` | URLs, local HTML files, tag removal |
 | **JSON** | `JSONParser` | Structured data preservation |
 | **Binary** | Generic handling | Fallback for unknown formats |
 
@@ -77,6 +78,13 @@ class BaseParser(ABC):
 - Preserves formatting
 - Example: `TXTParser().parse("document.txt")`
 
+#### WebpageParser
+- Fetches and parses webpages from URLs
+- Parses local HTML files
+- Removes HTML tags and scripts
+- Extracts metadata (title, description)
+- Example: `WebpageParser().parse("https://example.com")` or `WebpageParser().parse("page.html")`
+
 #### JSONParser
 - Parses structured JSON data
 - Converts to readable text format
@@ -119,16 +127,24 @@ from src.extraction.parsers import ParserFactory
 factory = ParserFactory()
 
 # Parse PDF
-parser = factory.create_parser("report.pdf")
+parser = factory.get_parser("report.pdf")
 text = parser.parse("report.pdf")
 
 # Parse DOCX
-parser = factory.create_parser("contract.docx")
+parser = factory.get_parser("contract.docx")
 text = parser.parse("contract.docx")
 
 # Parse CSV
-parser = factory.create_parser("data.csv")
+parser = factory.get_parser("data.csv")
 text = parser.parse("data.csv")
+
+# Parse webpage from URL
+parser = factory.get_parser("https://example.com")
+text = parser.parse("https://example.com")
+
+# Parse local HTML file
+parser = factory.get_parser("page.html")
+text = parser.parse("page.html")
 ```
 
 ### Batch Processing
@@ -142,7 +158,7 @@ results = []
 
 for file_path in Path("documents/").glob("*"):
     try:
-        parser = factory.create_parser(str(file_path))
+        parser = factory.get_parser(str(file_path))
         text = parser.parse(str(file_path))
         results.append({
             "file": str(file_path),
@@ -165,11 +181,11 @@ from src.extraction.parsers import ParserFactory, DocumentType
 factory = ParserFactory()
 
 try:
-    parser = factory.create_parser("document.pdf")
+    parser = factory.get_parser("document.pdf")
     text = parser.parse("document.pdf")
 except FileNotFoundError:
     print("Document not found")
-except DocumentType.UnsupportedFormat:
+except ValueError:
     print("Format not supported")
 except Exception as e:
     print(f"Parsing error: {e}")
@@ -185,6 +201,7 @@ parsers/
 ├── docx_parser.py           # DOCX implementation
 ├── csv_parser.py            # CSV implementation
 ├── txt_parser.py            # TXT implementation
+├── webpage_parser.py        # Webpage/HTML implementation
 ├── parser_factory.py        # Factory pattern
 └── README.md                # This file
 ```
@@ -208,12 +225,16 @@ pytest tests/extraction/test_parsers.py --cov=src/extraction/parsers
 - ✅ DOCX with tables and formatting
 - ✅ CSV with various delimiters
 - ✅ TXT with encoding detection
+- ✅ HTML parsing from URLs
+- ✅ Local HTML file parsing
+- ✅ HTML tag removal and text extraction
 - ✅ JSON structure preservation
 - ✅ Factory pattern auto-detection
 - ✅ Error handling for corrupted files
 - ✅ Metadata preservation
 - ✅ Large file handling
 - ✅ Edge cases (empty files, special characters)
+- ✅ Network error handling (URL parsing)
 
 ## Performance
 
@@ -229,6 +250,8 @@ pytest tests/extraction/test_parsers.py --cov=src/extraction/parsers
 
 - **PyPDF2** (4.1.1) - PDF parsing
 - **python-docx** (0.8.11) - DOCX parsing
+- **requests** (2.31.0) - URL fetching for webpage parsing
+- **beautifulsoup4** (4.12.2) - HTML parsing and tag removal
 - **csv** (stdlib) - CSV handling
 - **json** (stdlib) - JSON parsing
 
