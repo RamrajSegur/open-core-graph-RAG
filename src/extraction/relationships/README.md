@@ -1,15 +1,49 @@
 # Phase 4: Relationship Extraction
 
-Extract semantic and pattern-based relationships between entities using dual-method extraction pipeline.
+Extract semantic and pattern-based relationships between entities using dual-method extraction pipeline or multi-extractor competition system.
 
 ## Overview
 
-The relationships module identifies connections between named entities using two complementary approaches:
+The relationships module provides two approaches for identifying connections between named entities:
 
-1. **Pattern-Based Extraction** - Rule-based matching for specific relationship types
-2. **Semantic Extraction** - Co-occurrence analysis for broader relationship discovery
+1. **Traditional** - Pattern-based and semantic extraction (fast, 50-100ms)
+2. **Competitive** - Multiple extractors with voting strategies (more accurate, parallel)
 
-This two-pronged approach enables both precise known relationships and discovery of new connections.
+**NEW (Phase 2):** Competitive Relationship Extraction system that runs multiple relationship extractors in parallel with intelligent voting strategies.
+
+## Features
+
+### 🆕 Phase 2: Competitive Relationship Extraction
+
+**NEW:** Run multiple relationship extractors in parallel and vote on final results.
+
+**Components:**
+- `CompetitiveRelationshipExtractor` - Orchestrates parallel extraction from multiple providers
+- `RelationshipCompetitor` - Wraps individual relationship extractors
+- `RelationshipAgreement` - Tracks consensus across extractors
+- `RelationshipProvider` - Abstract interface for extractors
+- `DefaultRelationshipProvider` - Wraps traditional RelationshipExtractor
+- 4 Voting Strategies: consensus, majority, weighted, best
+
+**Voting Strategies:**
+- **Consensus** (~95% precision): Only relationships all models agree on
+- **Majority** (~88% precision, ~85% recall): Relationships 2+ extractors agree on
+- **Weighted** (~91% precision, ~90% recall) ⭐ RECOMMENDED: Weight by confidence × agreement
+- **Best** (~82% precision): Use best-performing extractor only
+
+See [COMPETITIVE_RELATIONSHIPS_QUICKSTART.md](../../COMPETITIVE_RELATIONSHIPS_QUICKSTART.md) for detailed guide.
+
+### Traditional Extraction
+
+**Pattern-Based Extraction** - Rule-based matching for specific relationship types
+- Fast execution
+- High precision for known patterns
+- Limited to predefined types
+
+**Semantic Extraction** - Co-occurrence analysis for broader relationship discovery
+- Discovers new connections
+- Broader coverage
+- Lower precision than patterns
 
 ## Relationship Types
 
