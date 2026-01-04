@@ -47,7 +47,7 @@ services:
     networks:
       - graph-rag-network
 
-  # Ollama service for LLaMA model
+  # Ollama service for open-source LLM models
   ollama:
     image: ollama/ollama:latest
     container_name: open-core-graph-rag-ollama
@@ -55,18 +55,41 @@ services:
       - "${OLLAMA_PORT:-11434}:11434"  # Ollama API port
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODELS: /root/.ollama/models  # Explicit models directory
     volumes:
-      - ollama-data:/root/.ollama  # Persist downloaded models
+      - ollama-models:/root/.ollama  # Persist downloaded models across container restarts
     networks:
       - graph-rag-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
-    # Pull LLaMA model on startup
-    command: sh -c "ollama serve & sleep 10 && ollama pull llama2 && wait"
+      retries: 5
+      start_period: 60s
+    # Pull open-source models on startup (one-time download)
+    # Models are persisted in volume, so won't re-download on restart
+    command: >
+      sh -c "
+        ollama serve &
+        OLLAMA_PID=$$!
+        echo 'Waiting for Ollama to be ready...'
+        sleep 15
+        
+        echo 'Checking for existing models...'
+        ollama list || true
+        
+        echo 'Pulling Mistral model (if not cached)...'
+        ollama pull mistral || true
+        
+        echo 'Pulling Neural Chat model (optional - uncomment if needed)'
+        # ollama pull neural-chat || true
+        
+        echo 'Pulling LLaMA 2 model (optional - uncomment if needed)'
+        # ollama pull llama2 || true
+        
+        echo 'All models ready!'
+        wait $$OLLAMA_PID
+      "
 
   # Python application container
   app:
@@ -104,9 +127,18 @@ services:
 
 volumes:
   tigergraph-data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
   tigergraph-logs:
+    driver: local
   postgres-data:
-  ollama-data:
+    driver: local
+  ollama-models:
+    driver: local
+    # Models are stored persistently on the host machine
+    # Located at: /var/lib/docker/volumes/open-core-graph-rag_ollama-models/_data
 
 networks:
   graph-rag-network:
