@@ -19,6 +19,10 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download SpaCy model for NER
+RUN python -m spacy download en_core_web_sm --user 2>/dev/null || \
+    pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+
 # Copy project source code
 COPY . .
 
@@ -27,6 +31,9 @@ RUN mkdir -p logs data/raw data/processed
 
 # Expose port for API (future use)
 EXPOSE 8000
+
+# Expose port for Ollama client communication
+EXPOSE 11434
 
 # Default command
 CMD ["python", "-m", "ipython"]
