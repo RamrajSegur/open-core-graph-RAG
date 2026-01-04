@@ -14,6 +14,7 @@ from src.extraction import (
     SemanticChunker,
     TextChunk,
 )
+from src.extraction.ner.hybrid_extraction import HybridSpaCyLLaMA
 from src.extraction.parsers import BaseParser, ParserFactory
 
 
@@ -67,17 +68,33 @@ class ExtractionPipeline:
         entity_extractor: Optional[EntityExtractor] = None,
         relationship_extractor: Optional[RelationshipExtractor] = None,
         parser_factory: Optional[ParserFactory] = None,
+        use_hybrid_ner: bool = True,
     ):
         """Initialize pipeline with extractors.
 
         Args:
             chunker: Text chunking strategy (default: SemanticChunker)
-            entity_extractor: NER pipeline (default: EntityExtractor with SpaCy)
+            entity_extractor: NER pipeline (default: HybridSpaCyLLaMA if use_hybrid_ner=True)
             relationship_extractor: Relationship extraction (default: RelationshipExtractor)
             parser_factory: Document parser factory (default: ParserFactory)
+            use_hybrid_ner: Use hybrid SpaCy+LLaMA NER (default: True)
+                           If False, uses traditional EntityExtractor (SpaCy only)
         """
         self.chunker = chunker or SemanticChunker()
-        self.entity_extractor = entity_extractor or EntityExtractor()
+        
+        # Initialize NER based on use_hybrid_ner flag
+        if entity_extractor:
+            self.entity_extractor = entity_extractor
+            self.hybrid_ner = False
+        elif use_hybrid_ner:
+            # Use hybrid SpaCy+LLaMA approach
+            self.entity_extractor = HybridSpaCyLLaMA()
+            self.hybrid_ner = True
+        else:
+            # Use traditional SpaCy-only approach
+            self.entity_extractor = EntityExtractor()
+            self.hybrid_ner = False
+        
         self.relationship_extractor = relationship_extractor or RelationshipExtractor()
         self.parser_factory = parser_factory or ParserFactory()
         self.stats = PipelineStats()

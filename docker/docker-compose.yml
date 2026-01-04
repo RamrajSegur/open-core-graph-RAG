@@ -47,6 +47,27 @@ services:
     networks:
       - graph-rag-network
 
+  # Ollama service for LLaMA model
+  ollama:
+    image: ollama/ollama:latest
+    container_name: open-core-graph-rag-ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"  # Ollama API port
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama-data:/root/.ollama  # Persist downloaded models
+    networks:
+      - graph-rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Pull LLaMA model on startup
+    command: sh -c "ollama serve & sleep 10 && ollama pull llama2 && wait"
+
   # Python application container
   app:
     build:
@@ -65,12 +86,15 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-graph_rag}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      OLLAMA_HOST: http://ollama:11434
       PYTHONUNBUFFERED: 1
     volumes:
       - ..:/workspace
       - /workspace/.venv  # Prevent local venv from mounting
     depends_on:
       postgres:
+        condition: service_healthy
+      ollama:
         condition: service_healthy
       tigergraph:
         condition: service_started  # Just wait for TigerGraph to start, not necessarily healthy
@@ -82,6 +106,7 @@ volumes:
   tigergraph-data:
   tigergraph-logs:
   postgres-data:
+  ollama-data:
 
 networks:
   graph-rag-network:

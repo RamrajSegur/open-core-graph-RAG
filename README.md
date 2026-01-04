@@ -15,6 +15,8 @@ Open Core Graph RAG is an open-source system that combines knowledge graphs with
 - 🐳 **Containerized**: Fully Docker-based for easy deployment
 - 📈 **Extensible**: Modular architecture for easy customization
 - 📝 **Well-Documented**: Comprehensive guides and examples
+- 🆕 **Phase 1 Complete**: Multi-LLM Entity Extraction Competition System (240 tests passing)
+- 🆕 **Phase 2 Complete**: Competitive Relationship Extraction System (18 new tests)
 
 ## 🏗️ Architecture
 
@@ -87,11 +89,23 @@ See [docker/README.md](./docker/README.md) for detailed Docker instructions.
 | Component | Status | Description |
 |-----------|--------|-------------|
 | [Knowledge Graph](./src/core/README.md) | 🚧 In Progress | TigerGraph integration, graph operations, querying |
-| [Extraction Pipeline](./src/extraction/README.md) | 🚧 In Progress | Entity/relation extraction, document processing |
+| [Extraction Pipeline](./src/extraction/README.md) | ✅ Complete | Entity/relation extraction with competition systems |
+| [Entity Extraction (NER)](./src/extraction/ner/README.md) | ✅ Complete | Traditional, Hybrid, & Competitive extraction |
+| [Relationship Extraction](./src/extraction/relationships/README.md) | ✅ Complete | Pattern-based & Competitive extraction |
 | [Retrieval](./src/retrieval/) | ⏳ Planned | Hybrid graph + semantic search |
 | [Reasoning Engine](./src/core/) | ⏳ Planned | Multi-hop inference, constraint satisfaction |
 | [LLM Integration](./src/llm/) | ⏳ Planned | Ollama, prompt management, response generation |
 | [REST API](./src/api/) | ⏳ Planned | FastAPI endpoints, request handling |
+
+### Documentation & Guides
+
+| Document | Purpose |
+|----------|---------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Complete system architecture |
+| [COMPLETE_ARCHITECTURE.md](./COMPLETE_ARCHITECTURE.md) | Full multi-LLM competition architecture |
+| [COMPETITION_QUICKSTART.md](./COMPETITION_QUICKSTART.md) | Entity competition system guide |
+| [COMPETITIVE_RELATIONSHIPS_QUICKSTART.md](./COMPETITIVE_RELATIONSHIPS_QUICKSTART.md) | Relationship competition guide |
+| [PHASE2_COMPLETION_REPORT.md](./PHASE2_COMPLETION_REPORT.md) | Phase 2 completion details |
 
 ### Infrastructure
 
