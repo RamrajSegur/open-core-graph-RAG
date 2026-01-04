@@ -32,6 +32,128 @@ All approaches provide confidence scoring, batch processing, deduplication, and 
 
 See [COMPETITION_QUICKSTART.md](../../COMPETITION_QUICKSTART.md) for detailed guide.
 
+#### Phase 1 Setup: Download Required Models
+
+The competitive NER system requires 3 LLM models running via Ollama:
+
+**Current Status:**
+- ✅ Mistral (4.4 GB) - Already downloaded
+- ❌ LLaMA 2 (7B, 4 GB) - Ready to download
+- ❌ Neural Chat (4 GB) - Ready to download
+
+**Quick Setup (30 minutes):**
+
+```bash
+# Option 1: Automated script (RECOMMENDED)
+./download-competitive-models.sh
+
+# Option 2: Manual download
+./manage_models.sh download llama2
+./manage_models.sh download neural-chat
+
+# Verify all 3 models
+./manage_models.sh list
+```
+
+**Expected Output after setup:**
+```
+NAME              ID              SIZE      MODIFIED
+mistral:latest    6577803aa9a0    4.4 GB    ...
+llama2:latest     ...             4 GB      ...
+neural-chat:...   ...             4 GB      ...
+```
+
+**How the System Accesses Models:**
+
+1. **Discovery Phase**: OllamaProvider calls `ollama show <model_name>`
+   - Verifies model is downloaded and running
+   - Returns model metadata and capabilities
+
+2. **Extraction Phase**: CompetitiveNER calls `ollama generate <model_name>`
+   - Sends extraction prompt to each model
+   - Runs all 3 models in parallel (ThreadPoolExecutor)
+   - Collects results from each competitor
+
+3. **Voting Phase**: Results combined using selected strategy
+   - Consensus, Majority, Weighted, or Best
+   - Outputs final high-confidence entities
+
+#### Error Messages & Troubleshooting
+
+**Error: Model not found**
+```
+RuntimeError: Ollama model 'llama2' not available: 
+Model 'llama2' not found at http://localhost:11434
+Run: ollama pull llama2
+```
+**Solution:** Model not downloaded yet
+```bash
+./manage_models.sh download llama2
+```
+
+**Error: Connection refused**
+```
+ConnectionError: Cannot connect to Ollama at http://localhost:11434
+docker.errors.DockerException: Error while fetching server API version
+```
+**Solution:** Containers not running
+```bash
+./auto dev  # Start containers
+./manage_models.sh list  # Verify connection
+```
+
+**Error: Model initialization timeout**
+```
+RuntimeError: Model 'llama2' initialization timeout after 30 seconds
+Check Ollama logs: docker logs open-core-graph-rag-ollama
+```
+**Solution:** Model loading slowly (first time), wait longer
+```bash
+# Check status
+docker exec open-core-graph-rag-ollama ollama list
+
+# If stuck, restart
+./auto stop
+./auto dev
+```
+
+**Error: Out of memory**
+```
+RuntimeError: Insufficient memory to load model 'llama2:13b'
+Available: 8 GB, Required: 13 GB
+```
+**Solution:** Using 13B model on limited system
+```bash
+# Use 7B models instead
+./manage_models.sh download llama2  # 7B version
+./manage_models.sh rm llama2:13b    # Remove 13B
+```
+
+**Warning: Model extraction slow**
+```
+WARNING: CompetitiveNER.extract() took 45 seconds
+Check Ollama performance: docker stats
+```
+**Solution:** System under load or slow CPU
+```bash
+# Check resource usage
+docker stats open-core-graph-rag-ollama
+
+# Reduce concurrent models if needed
+CompetitiveNER(competitors=competitors[:2], max_workers=2)
+```
+
+**Debug: Enable verbose logging**
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+# Now you'll see:
+# DEBUG: Model mistral verified
+# DEBUG: Extraction from mistral: 245ms
+# DEBUG: Extraction from llama2: 312ms
+# DEBUG: Voting results: consensus found 5 entities
+```
 ### Hybrid NER (SpaCy + LLM)
 
 Combines fast SpaCy extraction with accurate LLM verification:
