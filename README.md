@@ -17,6 +17,7 @@ Open Core Graph RAG is an open-source system that combines knowledge graphs with
 - 📝 **Well-Documented**: Comprehensive guides and examples
 - 🆕 **Phase 1 Complete**: Multi-LLM Entity Extraction Competition System (240 tests passing)
 - 🆕 **Phase 2 Complete**: Competitive Relationship Extraction System (18 new tests)
+- 🆕 **Phase 3 Complete**: Entity Type Discovery - Guided & Discovery Mode Support (46 tests passing)
 
 ## 🏗️ Architecture
 

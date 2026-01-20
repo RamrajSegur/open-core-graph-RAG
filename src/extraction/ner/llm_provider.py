@@ -19,7 +19,26 @@ logger = logging.getLogger(__name__)
 
 
 class LLMProvider(ABC):
-    """Abstract base class for LLM-based NER providers."""
+    """Abstract base class for LLM-based NER providers.
+    
+    Supports two extraction modes:
+    1. Guided Mode: Extract predefined entity types (default)
+    2. Discovery Mode: Let LLM autonomously infer entities
+    """
+
+    # Default entity types (for guided mode)
+    DEFAULT_ENTITY_TYPES = [
+        "PERSON",
+        "ORG",
+        "LOCATION",
+        "DATE",
+        "TIME",
+        "MONEY",
+        "PERCENT",
+        "PRODUCT",
+        "EVENT",
+        "LANGUAGE",
+    ]
 
     # Map common LLM entity types to our EntityType enum
     # Subclasses can override for model-specific mappings
@@ -54,6 +73,28 @@ class LLMProvider(ABC):
         "OTHER": EntityType.CUSTOM,
     }
 
+    def __init__(
+        self,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: bool = False,
+    ):
+        """Initialize LLM provider with entity configuration.
+        
+        Args:
+            entity_types: List of entity types to extract (e.g., ["PERSON", "ORG"])
+                         Only used if discovery_mode=False
+                         If None, uses DEFAULT_ENTITY_TYPES
+            discovery_mode: If True, let LLM infer entities autonomously
+                           If False, only extract specified entity_types
+        """
+        self.discovery_mode = discovery_mode
+        self.entity_types = entity_types or self.DEFAULT_ENTITY_TYPES
+        
+        if discovery_mode:
+            logger.info("NER in DISCOVERY MODE - LLM will infer entities autonomously")
+        else:
+            logger.info(f"NER in GUIDED MODE - Entity types: {self.entity_types}")
+
     @abstractmethod
     def extract_entities(
         self,
@@ -61,6 +102,8 @@ class LLMProvider(ABC):
         chunk_id: str = "",
         source_file: str = "",
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[ExtractedEntity]:
         """Extract entities from text.
         
@@ -69,6 +112,8 @@ class LLMProvider(ABC):
             chunk_id: ID of the chunk
             source_file: Source file path
             timeout: Request timeout in seconds
+            entity_types: Override entity types for this call (guided mode only)
+            discovery_mode: Override discovery mode for this call
             
         Returns:
             List of ExtractedEntity objects
@@ -80,37 +125,73 @@ class LLMProvider(ABC):
         self,
         texts: List[str],
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[List[ExtractedEntity]]:
         """Extract entities from multiple texts.
         
         Args:
             texts: List of texts to extract from
             timeout: Request timeout in seconds
+            entity_types: Override entity types
+            discovery_mode: Override discovery mode
             
         Returns:
             List of entity lists
         """
         pass
 
-    def _build_prompt(self, text: str) -> str:
-        """Build the NER prompt.
-        
-        Override this method in subclasses if the LLM requires
-        a different prompt format.
+    def _build_prompt(
+        self,
+        text: str,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
+    ) -> str:
+        """Build the NER prompt (guided or discovery mode).
         
         Args:
             text: Text to extract entities from
+            entity_types: Entity types to extract (guided mode)
+            discovery_mode: Whether to use discovery mode
             
         Returns:
             The prompt to send to the LLM
         """
-        return f"""Extract named entities from this text and return as JSON.
-Entity types: PERSON, ORG, LOCATION, DATE, TIME, MONEY, PERCENT, PRODUCT, EVENT, LANGUAGE.
+        # Use provided values or fall back to instance defaults
+        mode = discovery_mode if discovery_mode is not None else self.discovery_mode
+        types_to_use = entity_types or self.entity_types
+
+        if mode:
+            # DISCOVERY MODE - Let LLM infer entities autonomously
+            return f"""Analyze the following text and extract ALL named entities you can find.
+For each entity, identify:
+1. The entity text
+2. The most appropriate entity type (e.g., PERSON, ORG, LOCATION, DATE, etc.)
+3. Your confidence score (0.0 to 1.0)
+
+Be comprehensive - extract entities of any type you identify, not limited to predefined categories.
 
 Text: "{text}"
 
 Return ONLY valid JSON in this format (no markdown, no explanations):
-{{"entities": [{{"text": "entity_text", "type": "ENTITY_TYPE", "confidence": 0.95}}]}}"""
+{{"entities": [
+    {{"text": "entity_text", "type": "INFERRED_TYPE", "confidence": 0.95}},
+    {{"text": "another_entity", "type": "ANOTHER_TYPE", "confidence": 0.87}}
+]}}"""
+
+        else:
+            # GUIDED MODE - Extract only specified entity types
+            entity_types_str = ", ".join(types_to_use)
+            return f"""Extract named entities from this text and return as JSON.
+Extract ONLY these entity types: {entity_types_str}
+
+Text: "{text}"
+
+Return ONLY valid JSON in this format (no markdown, no explanations):
+{{"entities": [
+    {{"text": "entity_text", "type": "ENTITY_TYPE", "confidence": 0.95}},
+    {{"text": "another_entity", "type": "ENTITY_TYPE", "confidence": 0.87}}
+]}}"""
 
     def _parse_response(self, response_text: str) -> List[Dict]:
         """Parse JSON response from LLM.
@@ -213,6 +294,8 @@ class OllamaProvider(LLMProvider):
         model_name: str = "llama2",
         host: str = "http://localhost:11434",
         temperature: float = 0.1,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: bool = False,
     ):
         """Initialize Ollama provider.
         
@@ -220,6 +303,8 @@ class OllamaProvider(LLMProvider):
             model_name: Model name (e.g., "llama2", "mistral", "llama2:13b")
             host: Ollama server host
             temperature: Temperature for generation (0.1 = deterministic)
+            entity_types: Entity types to extract (guided mode)
+            discovery_mode: If True, let LLM infer entities autonomously
         """
         try:
             import ollama
@@ -232,6 +317,9 @@ class OllamaProvider(LLMProvider):
         self.host = host
         self.temperature = temperature
         self.client = ollama.Client(host=host)
+
+        # Initialize parent with entity types and discovery mode
+        super().__init__(entity_types=entity_types, discovery_mode=discovery_mode)
 
         # Verify model is available
         self._verify_model()
@@ -258,12 +346,16 @@ class OllamaProvider(LLMProvider):
         chunk_id: str = "",
         source_file: str = "",
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[ExtractedEntity]:
-        """Extract entities using Ollama."""
+        """Extract entities using Ollama (guided or discovery mode)."""
         if not text or not text.strip():
             return []
 
-        prompt = self._build_prompt(text)
+        # Use provided values or fall back to instance defaults
+        mode = discovery_mode if discovery_mode is not None else self.discovery_mode
+        prompt = self._build_prompt(text, entity_types=entity_types, discovery_mode=mode)
 
         try:
             response = self.client.generate(
@@ -305,9 +397,19 @@ class OllamaProvider(LLMProvider):
         self,
         texts: List[str],
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[List[ExtractedEntity]]:
         """Extract entities from multiple texts."""
-        return [self.extract_entities(text, timeout=timeout) for text in texts]
+        return [
+            self.extract_entities(
+                text,
+                timeout=timeout,
+                entity_types=entity_types,
+                discovery_mode=discovery_mode,
+            )
+            for text in texts
+        ]
 
 
 class OpenAIProvider(LLMProvider):
@@ -316,12 +418,20 @@ class OpenAIProvider(LLMProvider):
     Install: pip install openai
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo"):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "gpt-3.5-turbo",
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: bool = False,
+    ):
         """Initialize OpenAI provider.
         
         Args:
             api_key: OpenAI API key (or set OPENAI_API_KEY env var)
             model: Model name (e.g., "gpt-3.5-turbo", "gpt-4")
+            entity_types: Entity types to extract (guided mode)
+            discovery_mode: If True, let LLM infer entities autonomously
         """
         try:
             import openai
@@ -335,6 +445,9 @@ class OpenAIProvider(LLMProvider):
         
         self.model = model
         self.client = openai.OpenAI()
+        
+        # Initialize parent with entity types and discovery mode
+        super().__init__(entity_types=entity_types, discovery_mode=discovery_mode)
         logger.info(f"Initialized OpenAIProvider with model: {model}")
 
     def extract_entities(
@@ -343,12 +456,16 @@ class OpenAIProvider(LLMProvider):
         chunk_id: str = "",
         source_file: str = "",
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[ExtractedEntity]:
         """Extract entities using OpenAI."""
         if not text or not text.strip():
             return []
 
-        prompt = self._build_prompt(text)
+        # Use provided values or fall back to instance defaults
+        mode = discovery_mode if discovery_mode is not None else self.discovery_mode
+        prompt = self._build_prompt(text, entity_types=entity_types, discovery_mode=mode)
 
         try:
             response = self.client.chat.completions.create(
@@ -390,9 +507,14 @@ class OpenAIProvider(LLMProvider):
         self,
         texts: List[str],
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[List[ExtractedEntity]]:
         """Extract entities from multiple texts."""
-        return [self.extract_entities(text, timeout=timeout) for text in texts]
+        return [
+            self.extract_entities(text, timeout=timeout, entity_types=entity_types, discovery_mode=discovery_mode)
+            for text in texts
+        ]
 
 
 class AnthropicProvider(LLMProvider):
@@ -401,12 +523,20 @@ class AnthropicProvider(LLMProvider):
     Install: pip install anthropic
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-3-sonnet-20240229"):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: str = "claude-3-sonnet-20240229",
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: bool = False,
+    ):
         """Initialize Anthropic provider.
         
         Args:
             api_key: Anthropic API key (or set ANTHROPIC_API_KEY env var)
             model: Model name (e.g., "claude-3-sonnet-20240229", "claude-3-opus-20240229")
+            entity_types: List of entity types to extract (default: DEFAULT_ENTITY_TYPES)
+            discovery_mode: If True, let Claude autonomously infer entities (default: False)
         """
         try:
             import anthropic
@@ -417,6 +547,7 @@ class AnthropicProvider(LLMProvider):
 
         self.client = anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic()
         self.model = model
+        super().__init__(entity_types=entity_types, discovery_mode=discovery_mode)
         logger.info(f"Initialized AnthropicProvider with model: {model}")
 
     def extract_entities(
@@ -425,12 +556,16 @@ class AnthropicProvider(LLMProvider):
         chunk_id: str = "",
         source_file: str = "",
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[ExtractedEntity]:
         """Extract entities using Claude."""
         if not text or not text.strip():
             return []
 
-        prompt = self._build_prompt(text)
+        # Use provided values or fall back to instance defaults
+        mode = discovery_mode if discovery_mode is not None else self.discovery_mode
+        prompt = self._build_prompt(text, entity_types=entity_types, discovery_mode=mode)
 
         try:
             response = self.client.messages.create(
@@ -471,9 +606,14 @@ class AnthropicProvider(LLMProvider):
         self,
         texts: List[str],
         timeout: int = 30,
+        entity_types: Optional[List[str]] = None,
+        discovery_mode: Optional[bool] = None,
     ) -> List[List[ExtractedEntity]]:
         """Extract entities from multiple texts."""
-        return [self.extract_entities(text, timeout=timeout) for text in texts]
+        return [
+            self.extract_entities(text, timeout=timeout, entity_types=entity_types, discovery_mode=discovery_mode)
+            for text in texts
+        ]
 
 
 def get_llm_provider(provider_type: str, **kwargs) -> LLMProvider:

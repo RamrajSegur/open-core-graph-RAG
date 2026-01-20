@@ -10,10 +10,22 @@ from .relationship_models import (
     RelationshipExtractionStats,
     RelationshipType,
 )
+from .competition import (
+    RelationshipProvider,
+    RelationshipCompetitor,
+    RelationshipAgreement,
+    CompetitiveRelationshipExtractor,
+    DefaultRelationshipProvider,
+)
 
 __all__ = [
     "RelationshipType",
     "ExtractedRelationship",
     "RelationshipExtractionStats",
     "RelationshipExtractor",
+    "RelationshipProvider",
+    "RelationshipCompetitor",
+    "RelationshipAgreement",
+    "CompetitiveRelationshipExtractor",
+    "DefaultRelationshipProvider",
 ]
