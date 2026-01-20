@@ -61,36 +61,11 @@ services:
     networks:
       - graph-rag-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
       timeout: 10s
-      retries: 5
-      start_period: 60s
-    # Pull open-source models on startup (one-time download)
-    # Models are persisted in volume, so won't re-download on restart
-    command: >
-      sh -c "
-        ollama serve &
-        OLLAMA_PID=$$!
-        echo 'Waiting for Ollama to be ready...'
-        sleep 15
-        
-        echo 'Checking for existing models...'
-        ollama list || true
-        
-        echo 'Pulling Mistral model (if not cached)...'
-        ollama pull mistral || true
-        
-        echo 'Pulling Neural Chat model (optional - uncomment if needed)'
-        # ollama pull neural-chat || true
-        
-        echo 'Pulling LLaMA 2 model (optional - uncomment if needed)'
-        # ollama pull llama2 || true
-        
-        echo 'All models ready!'
-        wait $$OLLAMA_PID
-      "
-
+      retries: 6
+      start_period: 30s
   # Python application container
   app:
     build:

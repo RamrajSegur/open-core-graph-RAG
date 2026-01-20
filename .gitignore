@@ -76,6 +76,9 @@ data/processed/*
 # Docker volumes (local only)
 docker/volumes/
 
+# Kanban Board (local project management)
+Kanban/
+
 # OS
 .DS_Store
 Thumbs.db

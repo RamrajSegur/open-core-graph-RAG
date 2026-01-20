@@ -16,13 +16,31 @@ from src.extraction.ner.llm_provider import LLMProvider
 class MockLLMProvider(LLMProvider):
     """Mock LLM provider for testing."""
     
-    def __init__(self, entities=None):
+    def __init__(self, entities=None, entity_types=None, discovery_mode=False):
+        """Initialize mock provider with optional discovery mode."""
+        super().__init__(entity_types=entity_types, discovery_mode=discovery_mode)
         self.entities = entities or []
     
-    def extract_entities(self, text, chunk_id="", source_file="", timeout=30):
+    def extract_entities(
+        self,
+        text,
+        chunk_id="",
+        source_file="",
+        timeout=30,
+        entity_types=None,
+        discovery_mode=None,
+    ):
+        """Extract entities with support for discovery mode."""
         return self.entities
     
-    def extract_entities_batch(self, texts, timeout=30):
+    def extract_entities_batch(
+        self,
+        texts,
+        timeout=30,
+        entity_types=None,
+        discovery_mode=None,
+    ):
+        """Extract entities from batch with discovery mode support."""
         return [self.entities for _ in texts]
 
 
@@ -506,3 +524,136 @@ class TestRunCompetition:
         assert len(entities) == 1
         assert entities[0].text == "Apple"
         assert stats["voting_strategy"] == "consensus"
+
+
+class TestEntityDiscoveryInCompetition:
+    """Tests for entity discovery modes in competition."""
+    
+    def test_competitor_with_guided_mode(self):
+        """Test competitor using guided mode."""
+        entities = [
+            ExtractedEntity(
+                text="Apple",
+                entity_type=EntityType.ORG,
+                chunk_id="1",
+                start_position=0,
+                end_position=5,
+                confidence=0.95,
+            ),
+        ]
+        
+        provider = MockLLMProvider(
+            entities=entities,
+            entity_types=["PERSON", "ORG"],
+            discovery_mode=False
+        )
+        competitor = LLMCompetitor(name="guided_model", provider=provider)
+        
+        assert competitor.provider.discovery_mode is False
+        assert "PERSON" in competitor.provider.entity_types or "ORG" in competitor.provider.entity_types
+    
+    def test_competitor_with_discovery_mode(self):
+        """Test competitor using discovery mode."""
+        entities = [
+            ExtractedEntity(
+                text="AAPL",
+                entity_type=EntityType.CUSTOM,
+                chunk_id="1",
+                start_position=0,
+                end_position=4,
+                confidence=0.92,
+            ),
+        ]
+        
+        provider = MockLLMProvider(
+            entities=entities,
+            discovery_mode=True
+        )
+        competitor = LLMCompetitor(name="discovery_model", provider=provider)
+        
+        assert competitor.provider.discovery_mode is True
+    
+    def test_mixed_mode_competition(self):
+        """Test competition with mixed guided and discovery modes."""
+        entities = [
+            ExtractedEntity(
+                text="Apple",
+                entity_type=EntityType.ORG,
+                chunk_id="1",
+                start_position=0,
+                end_position=5,
+                confidence=0.95,
+            ),
+        ]
+        
+        guided_provider = MockLLMProvider(
+            entities=entities,
+            entity_types=["PERSON", "ORG"],
+            discovery_mode=False
+        )
+        
+        discovery_provider = MockLLMProvider(
+            entities=entities,
+            discovery_mode=True
+        )
+        
+        competitors = [
+            LLMCompetitor("model_guided", guided_provider),
+            LLMCompetitor("model_discovery", discovery_provider),
+        ]
+        
+        # Both competitors should work in competition
+        assert competitors[0].provider.discovery_mode is False
+        assert competitors[1].provider.discovery_mode is True
+        
+        # Extract with both
+        text = "Apple Inc."
+        competitors[0].extract(text)
+        competitors[1].extract(text)
+        
+        assert len(competitors[0].entities) > 0
+        assert len(competitors[1].entities) > 0
+    
+    def test_competition_extraction_preserves_modes(self):
+        """Test that competition doesn't change individual modes."""
+        entities = [
+            ExtractedEntity(
+                text="Apple",
+                entity_type=EntityType.ORG,
+                chunk_id="1",
+                start_position=0,
+                end_position=5,
+                confidence=0.95,
+            ),
+        ]
+        
+        competitor1 = LLMCompetitor(
+            "model1",
+            MockLLMProvider(entities=entities, discovery_mode=False)
+        )
+        competitor2 = LLMCompetitor(
+            "model2",
+            MockLLMProvider(entities=entities, discovery_mode=True)
+        )
+        
+        text = "Apple Inc."
+        competitor1.extract(text)
+        competitor2.extract(text)
+        
+        # Modes should be preserved
+        assert competitor1.provider.discovery_mode is False
+        assert competitor2.provider.discovery_mode is True
+    
+    def test_competitor_with_custom_entity_types(self):
+        """Test competitor with custom entity types."""
+        entities = []
+        custom_types = ["COMPANY", "FOUNDER", "TICKER"]
+        
+        provider = MockLLMProvider(
+            entities=entities,
+            entity_types=custom_types,
+            discovery_mode=False
+        )
+        competitor = LLMCompetitor("custom_types", provider)
+        
+        assert competitor.provider.entity_types == custom_types
